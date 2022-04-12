@@ -17,12 +17,13 @@ export const listenForUserCreation = async () => {
 		}
 		try {
 			const res = await client.query(
-				'INSERT INTO players (display_name, user_id) values ($1, $2)',
+				'INSERT INTO players (display_name, user_id) VALUES($1, $2) RETURNING *',
 				[display_name, user_id]
 			);
 			if (Array.isArray(res.rows) && res.rows.length > 0) {
 				console.log(`new player created: ${res.rows[0]}`);
 			} else {
+				console.log(res.rows);
 				console.error('new player creation failed');
 			}
 		} catch(err) {
