@@ -5,19 +5,23 @@ export const listenForUserCreation = async () => {
 	client.query('LISTEN user_player');
 	client.on('notification', async (data) => {
 		const { payload } = data;
-		const { display_name='', user_id } = payload;
+		const JSONpayload = JSON.parse(payload);
+		const { display_name='', user_id } = JSONpayload;
+		
+		console.log(`user_id: ${user_id}; typeof user_id ${typeof user_id}`);
 
 		if (typeof user_id !== 'number') {
 			console.error('message to user_player channel with bad user_id');
+			console.error(user_id)
 			return;
 		}
 		try {
-			const rows = await client.query(
-				'INSERT INTO players (display_name, user_id) values $1, $2', 
+			const res = await client.query(
+				'INSERT INTO players (display_name, user_id) values ($1, $2)',
 				[display_name, user_id]
 			);
-			if (Array.isArray(rows) && rows.length > 0) {
-				console.log(`new player created: ${rows[0]}`);
+			if (Array.isArray(res.rows) && res.rows.length > 0) {
+				console.log(`new player created: ${res.rows[0]}`);
 			} else {
 				console.error('new player creation failed');
 			}
