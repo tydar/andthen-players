@@ -1,3 +1,5 @@
+"use strict";
+
 import * as players from './players.js';
 
 export const mountRoutes = app => {
