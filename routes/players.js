@@ -1,13 +1,34 @@
 import Router from 'express-promise-router';
 import * as db from '../db/index.js';
 import * as jose from 'jose';
+import cookieParser from 'cookie-parser';
 
 export const router = new Router();
+
+router.use(cookieParser());
 
 const stringToKey = (str) => {
 	const encoder = new TextEncoder();
 	return encoder.encode(str);
 };
+
+router.use(async (req, res, next) => {
+	// authentication middleware used for all /games reqs
+	const { andthen_auth } = req.cookies;
+
+	if (typeof andthen_auth === 'undefined') {
+		res.json({status: 'error', message: 'not authenticated', code:401})
+	}
+
+	try {
+		const { payload } = await jose.jwtVerify(andthen_auth, stringToKey("your-256-bit-secret"));
+		req.body.user_id = payload.id;
+		req.body.admin = payload.admin;
+		next();
+	} catch(err) {
+		res.json({status: 'error', message :`jwt auth token error ${err}`, code: 401});
+	}
+});
 
 router.get('/user/:id', async (req, res) => {
 	const { id } = req.params;
@@ -31,23 +52,7 @@ router.get('/user/:id', async (req, res) => {
 });
 
 router.get('/token', async (req, res) => {
-	// if the user is authenticated
-	// give them the token for their player id
-	// or give an error
-	const authHeader = req.get('Authorization');
-	if (typeof authHeader === 'undefined') {
-		res.json({status: 'error', message: 'not authenticated', code: 401, data:{'WWW-Authenticate': 'Bearer'}});
-	}
-
-	if (!authHeader.startsWith('Bearer ')) {
-		res.json({status: 'error', message: 'expected Bearer token', code: 400});
-	}
-
-	const jwt = authHeader.slice("Bearer ".length);
-	const { payload } = await jose.jwtVerify(jwt, stringToKey("your-256-bit-secret"));
-	const { id } = payload;
-
-	if (typeof id !== 'number') {
+	if (typeof req.body.user_id !== 'number') {
 		res.json({status: 'error', message: `bad token payload type: ${typeof id}`});
 	}
 
@@ -55,7 +60,7 @@ router.get('/token', async (req, res) => {
 	try {
 		dbRes = await db.query(
 			'SELECT id FROM players WHERE user_id = $1',
-			[id]
+			[req.body.user_id]
 		);
 
 		if (!Array.isArray(dbRes.rows) || dbRes.rows.length === 0) {
@@ -63,6 +68,7 @@ router.get('/token', async (req, res) => {
 			res.json({status: 'fail', data: {message: 'missing user record', db_response: dbRes.rows}});
 		}
 	} catch(err) {
+		console.log(err);
 		res.json({status: 'error', message: 'internal error', code: 500});
 	}
 
@@ -98,27 +104,12 @@ router.get('/get/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-	const { authHeader } = req.get('Authorization');
-	if (typeof authHeader === 'undefined') {
-		res.json({status: 'error', message: 'not authenticated', code: 401, data:{'WWW-Authenticate': 'Bearer'}});
-		return;
-	}
-
-	if (!authHeader.startsWith('Bearer ')) {
-		res.json({status: 'error', message: 'expected Bearer token', code: 400});
-		return;
-	}
-
-	const jwt = authHeader.slice("Bearer ".length);
-	const { payload } = await jose.jwtVerify(jwt, stringToKey("your-256-bit-secret"));
-	const { admin } = payload;
-
-	if (typeof admin !== 'boolean') {
+	if (typeof req.body.admin !== 'boolean') {
 		res.json({status: 'error', message: 'not authorized', code: 403});
 		return;
 	}
 
-	if (!admin) {
+	if (!req.body.admin) {
 		res.json({status: 'error', message: 'not authorized', code: 403});
 		return;
 	}

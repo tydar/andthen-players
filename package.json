@@ -14,6 +14,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "cookie-parser": "^1.4.6",
     "express": "^4.17.3",
     "express-promise-router": "^4.1.1",
     "jose": "^4.6.1",
